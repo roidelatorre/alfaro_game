@@ -1,0 +1,326 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Alfaro Bros: Cazador de Frases</title>
+<style>
+:root{
+  --bg:#07152c; --panel:#0d2b5c; --yellow:#ffd21f; --blue:#32a8ff;
+  --green:#18b957; --red:#ff4d4d; --white:#f4f7ff; --shadow:#031025;
+}
+*{box-sizing:border-box}
+html,body{
+  margin:0; min-height:100%;
+  background:radial-gradient(circle at 50% 0%, #143c7c 0%, #07152c 48%, #030914 100%);
+  color:var(--white);
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  overflow:hidden; touch-action:none;
+}
+body{display:flex; justify-content:center; align-items:center; padding:10px}
+.app{width:min(100vw,980px); max-width:980px; display:grid; grid-template-columns:1fr; gap:10px}
+.top{
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  background:rgba(13,43,92,.9); border:2px solid rgba(50,168,255,.45);
+  box-shadow:0 8px 0 var(--shadow); border-radius:18px; padding:10px 14px;
+}
+.brand{line-height:1; letter-spacing:.5px}
+.brand small{display:block; color:var(--blue); font-weight:800; font-size:12px; text-transform:uppercase}
+.brand strong{display:block; color:var(--yellow); font-size:clamp(20px,4vw,34px); text-shadow:3px 3px 0 #000; text-transform:uppercase}
+.hud{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; font-weight:900}
+.pill{background:#061a3b; border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:7px 10px; white-space:nowrap}
+.game-wrap{
+  position:relative; border-radius:18px; overflow:hidden;
+  border:3px solid rgba(50,168,255,.55); background:#031027;
+  box-shadow:0 10px 0 var(--shadow), 0 20px 45px rgba(0,0,0,.35);
+}
+canvas{width:100%; display:block; image-rendering:pixelated; image-rendering:crisp-edges; background:#5fb8ff}
+.overlay{
+  position:absolute; inset:0; display:flex; justify-content:center; align-items:center; text-align:center;
+  padding:20px; background:linear-gradient(rgba(2,8,20,.25), rgba(2,8,20,.8));
+}
+.modal{
+  width:min(92%,520px); background:rgba(6,26,59,.95);
+  border:3px solid var(--yellow); border-radius:18px; padding:22px; box-shadow:0 10px 0 #000;
+}
+.modal h1{
+  margin:0 0 8px; color:var(--yellow); text-shadow:3px 3px 0 #000;
+  font-size:clamp(28px,7vw,48px); line-height:.95; text-transform:uppercase;
+}
+.modal p{margin:8px 0; color:#d9e9ff; line-height:1.4}
+.btn{
+  border:0; border-radius:12px; padding:13px 16px; background:var(--yellow); color:#07152c;
+  font-weight:1000; cursor:pointer; text-transform:uppercase; box-shadow:0 5px 0 #b98500;
+  margin-top:12px; font-size:16px; width:100%;
+}
+.btn:active{transform:translateY(3px); box-shadow:0 2px 0 #b98500}
+.controls{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
+.control{
+  user-select:none; -webkit-user-select:none; height:58px; border-radius:16px;
+  border:2px solid rgba(255,255,255,.15); background:linear-gradient(#164f9e,#0a2a61);
+  color:#fff; font-size:24px; font-weight:1000; box-shadow:0 5px 0 #031025;
+}
+.control.jump{background:linear-gradient(#ffd21f,#e6a900); color:#07152c}
+.footer{text-align:center; color:#b8d2ff; font-size:13px; opacity:.95}
+.footer a{color:var(--yellow); text-decoration:none; font-weight:900}
+@media (min-width:800px){.controls{display:none}}
+@media (max-height:720px){body{align-items:flex-start}.top{padding:7px 10px}.control{height:48px}.footer{display:none}}
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="top">
+    <div class="brand">
+      <small>8 Bits Edition</small>
+      <strong>Alfaro Bros</strong>
+    </div>
+    <div class="hud">
+      <div class="pill">⭐ <span id="score">0</span></div>
+      <div class="pill">❤️ <span id="lives">3</span></div>
+      <div class="pill">🏁 <span id="level">1</span></div>
+    </div>
+  </section>
+
+  <section class="game-wrap">
+    <canvas id="game" width="960" height="540"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="modal">
+        <h1>Alfaro Bros</h1>
+        <p><b>Objetivo:</b> agarrá las frases del maestro y esquivá las urgencias.</p>
+        <p>Desktop: ← → para moverte, Espacio para saltar.</p>
+        <p>Mobile: usá los botones de abajo.</p>
+        <button class="btn" id="startBtn">Empezar partido</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="controls">
+    <button class="control" id="leftBtn">◀</button>
+    <button class="control jump" id="jumpBtn">⬆</button>
+    <button class="control" id="rightBtn">▶</button>
+  </section>
+
+  <div class="footer">
+    Creado por Rodrigo de Latorre · Instagram
+    <a href="https://instagram.com/roidelatorre" target="_blank">@roidelatorre</a>
+  </div>
+</main>
+
+<script>
+(() => {
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const scoreEl = document.getElementById("score");
+  const livesEl = document.getElementById("lives");
+  const levelEl = document.getElementById("level");
+  const overlay = document.getElementById("overlay");
+  const startBtn = document.getElementById("startBtn");
+
+  const W = canvas.width, H = canvas.height, groundY = 450, gravity = 0.75;
+  let running=false, score=0, lives=3, level=1, cameraX=0, worldSpeed=2.2;
+  let phraseTimer=0, obstacleTimer=0, clouds=[], phrases=[], obstacles=[], particles=[];
+  const keys={left:false,right:false,jump:false};
+
+  const phraseBank=[
+    "No hay atajos","El fútbol te devuelve","La presión se administra","Paciencia y raíces",
+    "El grupo primero","Cebar el mate despacio","Interpretar el partido","Cruzar el desierto",
+    "Las urgencias son malas","Construir lleva tiempo","El tiempo acomoda","Cada paso cuenta"
+  ];
+
+  const player={x:90,y:364,w:44,h:86,vx:0,vy:0,speed:5.1,grounded:false,inv:0};
+
+  function resetGame(){
+    running=true; score=0; lives=3; level=1; worldSpeed=2.2; phraseTimer=20; obstacleTimer=110;
+    phrases=[]; obstacles=[]; particles=[]; cameraX=0;
+    player.x=90; player.y=groundY-player.h; player.vx=0; player.vy=0; player.inv=0;
+    clouds=Array.from({length:6},(_,i)=>({x:i*180+Math.random()*80,y:45+Math.random()*110,s:1+Math.random()*1.8}));
+    overlay.style.display="none"; updateHud();
+  }
+
+  function updateHud(){scoreEl.textContent=score; livesEl.textContent=lives; levelEl.textContent=level}
+  function rects(a,b){return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y}
+  function rnd(arr){return arr[Math.floor(Math.random()*arr.length)]}
+
+  function spawnPhrase(){
+    const text=rnd(phraseBank);
+    phrases.push({x:W+30,y:180+Math.random()*160,w:70+Math.min(text.length*8,150),h:38,text,bob:Math.random()*6.28,taken:false});
+  }
+
+  function spawnObstacle(){
+    const type=Math.random()>.45?"urgencia":"var";
+    obstacles.push({x:W+40,y:type==="urgencia"?groundY-48:groundY-56,w:type==="urgencia"?48:42,h:type==="urgencia"?48:56,type});
+  }
+
+  function jump(){
+    if(player.grounded){
+      player.vy=-15.4; player.grounded=false; makeDust(player.x+player.w/2, groundY-4);
+    }
+  }
+
+  function makeDust(x,y){
+    for(let i=0;i<8;i++) particles.push({x,y,vx:(Math.random()-.5)*4,vy:-Math.random()*3,life:22,size:3+Math.random()*4,color:"#d2ae62"});
+  }
+
+  function makeSpark(x,y){
+    for(let i=0;i<14;i++) particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.8)*5,life:28,size:3+Math.random()*5,color:Math.random()>.5?"#ffd21f":"#32a8ff"});
+  }
+
+  function hurt(){
+    if(player.inv>0) return;
+    lives--; player.inv=90; player.vy=-9; makeSpark(player.x+player.w/2,player.y+player.h/2);
+    if(lives<=0) endGame(false);
+    updateHud();
+  }
+
+  function endGame(win){
+    running=false;
+    overlay.style.display="flex";
+    overlay.innerHTML=`<div class="modal">
+      <h1>${win?"¡Ascenso!":"Fin del partido"}</h1>
+      <p>Puntaje final: <b>${score}</b></p>
+      <p>${win?"El grupo entendió el mensaje.":"Las urgencias fueron malas consejeras."}</p>
+      <button class="btn" id="restartBtn">Jugar de nuevo</button>
+    </div>`;
+    document.getElementById("restartBtn").onclick=resetGame;
+  }
+
+  function txt(text,x,y,size=16,color="#fff",align="left"){
+    ctx.font=`900 ${size}px monospace`; ctx.textAlign=align; ctx.textBaseline="middle";
+    ctx.fillStyle="rgba(0,0,0,.45)"; ctx.fillText(text,x+2,y+2);
+    ctx.fillStyle=color; ctx.fillText(text,x,y);
+  }
+  function block(x,y,w,h,color){ctx.fillStyle=color; ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+
+  function drawBackground(){
+    const grad=ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,"#65b7ff"); grad.addColorStop(.55,"#2e72c2"); grad.addColorStop(1,"#102852");
+    ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+
+    clouds.forEach(c=>{
+      c.x-=worldSpeed*.22*c.s; if(c.x<-140)c.x=W+80+Math.random()*180;
+      block(c.x,c.y,38*c.s,18*c.s,"rgba(255,255,255,.8)");
+      block(c.x+18*c.s,c.y-12*c.s,44*c.s,30*c.s,"rgba(255,255,255,.9)");
+      block(c.x+56*c.s,c.y+2*c.s,34*c.s,16*c.s,"rgba(255,255,255,.75)");
+    });
+
+    ctx.fillStyle="#204f89"; ctx.beginPath();
+    ctx.moveTo(0,groundY); ctx.lineTo(120,280); ctx.lineTo(260,groundY); ctx.lineTo(430,250);
+    ctx.lineTo(600,groundY); ctx.lineTo(760,270); ctx.lineTo(960,groundY); ctx.closePath(); ctx.fill();
+
+    for(let x=-((cameraX*.45)%160);x<W;x+=160){
+      block(x,330,126,42,"rgba(8,34,78,.78)");
+      block(x+8,338,110,26,x%320===0?"#1d5db8":"#0e9a50");
+      txt(x%320===0?"PASION":"UNION",x+63,351,14,"rgba(255,255,255,.38)","center");
+    }
+
+    block(0,groundY,W,H-groundY,"#2f8a38");
+    for(let x=-((cameraX)%48);x<W;x+=48){
+      block(x,groundY,48,14,x%96===0?"#46b34c":"#3aa442");
+      block(x,groundY+14,48,70,x%96===0?"#7a4b22":"#6a3d1b");
+      block(x+8,groundY+26,8,8,"#4d2a12"); block(x+28,groundY+48,8,8,"#4d2a12");
+    }
+  }
+
+  function drawPlayer(){
+    const px=Math.round(player.x), py=Math.round(player.y);
+    if(player.inv>0 && Math.floor(player.inv/6)%2===0) return;
+    block(px-8,groundY-7,player.w+16,6,"rgba(0,0,0,.25)");
+    block(px+9,py+64,11,20,"#06132e"); block(px+25,py+64,11,20,"#06132e");
+    block(px+5,py+80,16,6,"#111"); block(px+25,py+80,16,6,"#111");
+    block(px+4,py+35,36,34,"#0a3d86"); block(px+0,py+42,10,24,"#082a61"); block(px+34,py+42,10,24,"#082a61");
+    block(px+16,py+36,12,28,"#fff"); block(px+20,py+40,6,24,"#111"); block(px+29,py+45,8,5,"#ff9d22");
+    block(px+11,py+8,25,25,"#d88b4c"); block(px+9,py+16,5,10,"#c47a42"); block(px+34,py+16,5,10,"#c47a42");
+    block(px+10,py+5,26,10,"#a5a5a5"); block(px+8,py+9,7,12,"#868686"); block(px+18,py+4,18,5,"#c4c4c4");
+    block(px+16,py+17,5,3,"#111"); block(px+29,py+17,5,3,"#111"); block(px+22,py+23,5,2,"#8d4c2a"); block(px+19,py+29,13,3,"#482717");
+  }
+
+  function drawPhrase(p){
+    const y=p.y+Math.sin(p.bob)*7;
+    block(p.x,y,p.w,p.h,"#ffd21f"); block(p.x+4,y+4,p.w-8,p.h-8,"#fff3a0");
+    txt("💬 "+p.text,p.x+p.w/2,y+p.h/2,13,"#061a3b","center");
+  }
+
+  function drawObstacle(o){
+    if(o.type==="urgencia"){
+      block(o.x,o.y,o.w,o.h,"#c92d2d"); block(o.x+5,o.y+5,o.w-10,o.h-10,"#ff5555");
+      txt("!",o.x+o.w/2,o.y+o.h/2,36,"#fff","center");
+    }else{
+      block(o.x+7,o.y+18,28,38,"#303030"); block(o.x+3,o.y+10,36,18,"#555"); block(o.x+11,o.y,20,14,"#777");
+      txt("VAR",o.x+21,o.y+25,12,"#fff","center");
+    }
+  }
+
+  function update(){
+    if(!running) return;
+    cameraX+=worldSpeed; phraseTimer--; obstacleTimer--;
+    if(phraseTimer<=0){spawnPhrase(); phraseTimer=Math.max(35,95-level*6)+Math.random()*45}
+    if(obstacleTimer<=0){spawnObstacle(); obstacleTimer=Math.max(55,135-level*7)+Math.random()*65}
+
+    player.vx=0;
+    if(keys.left) player.vx=-player.speed;
+    if(keys.right) player.vx=player.speed;
+    if(keys.jump){jump(); keys.jump=false}
+    player.x+=player.vx; player.x=Math.max(20,Math.min(W-player.w-20,player.x));
+    player.vy+=gravity; player.y+=player.vy;
+    if(player.y+player.h>=groundY){player.y=groundY-player.h; player.vy=0; player.grounded=true}
+    if(player.inv>0) player.inv--;
+
+    phrases.forEach(p=>{
+      p.x-=worldSpeed+1.3; p.bob+=.05;
+      const hit={x:p.x,y:p.y+Math.sin(p.bob)*7,w:p.w,h:p.h};
+      if(!p.taken && rects(player,hit)){
+        p.taken=true; score+=10; makeSpark(p.x+p.w/2,p.y+p.h/2);
+        if(score%80===0){level++; worldSpeed+=.35}
+        updateHud();
+      }
+    });
+    phrases=phrases.filter(p=>!p.taken && p.x>-220);
+
+    obstacles.forEach(o=>{o.x-=worldSpeed+2.2; if(rects(player,o)){o.x=-999; hurt()}});
+    obstacles=obstacles.filter(o=>o.x>-120);
+
+    particles.forEach(p=>{p.x+=p.vx; p.y+=p.vy; p.vy+=.18; p.life--});
+    particles=particles.filter(p=>p.life>0);
+
+    if(score>=300) endGame(true);
+  }
+
+  function draw(){
+    drawBackground();
+    phrases.forEach(drawPhrase); obstacles.forEach(drawObstacle); drawPlayer();
+    particles.forEach(p=>block(p.x,p.y,p.size,p.size,p.color));
+    txt("Agarrá frases. Esquivá urgencias.",20,24,18,"#fff");
+    txt("Meta: 300 puntos",W-20,24,18,"#ffd21f","right");
+  }
+
+  function loop(){update(); draw(); requestAnimationFrame(loop)}
+
+  document.addEventListener("keydown",e=>{
+    if(e.key==="ArrowLeft") keys.left=true;
+    if(e.key==="ArrowRight") keys.right=true;
+    if(e.code==="Space"||e.key==="ArrowUp"){e.preventDefault(); keys.jump=true}
+  });
+  document.addEventListener("keyup",e=>{
+    if(e.key==="ArrowLeft") keys.left=false;
+    if(e.key==="ArrowRight") keys.right=false;
+  });
+
+  function bindHold(id,on,off){
+    const el=document.getElementById(id);
+    const start=e=>{e.preventDefault(); on()};
+    const end=e=>{e.preventDefault(); off()};
+    el.addEventListener("touchstart",start,{passive:false}); el.addEventListener("touchend",end,{passive:false});
+    el.addEventListener("touchcancel",end,{passive:false}); el.addEventListener("mousedown",start);
+    el.addEventListener("mouseup",end); el.addEventListener("mouseleave",end);
+  }
+  bindHold("leftBtn",()=>keys.left=true,()=>keys.left=false);
+  bindHold("rightBtn",()=>keys.right=true,()=>keys.right=false);
+  bindHold("jumpBtn",()=>keys.jump=true,()=>keys.jump=false);
+
+  startBtn.onclick=resetGame;
+  loop();
+})();
+</script>
+</body>
+</html>
